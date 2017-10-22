@@ -22,7 +22,9 @@ void *connection_handler(void *socketfdesc)
   int clisock = *(int*)socketfdesc;
   int read_ret;
   int end = 0;
-  char *message, buffer[256];
+  char *message, buffer[256], sendbuffer[256];
+
+
 
   //send message to client
   //write takes socketfd to write to, message , length of message
@@ -42,17 +44,43 @@ void *connection_handler(void *socketfdesc)
     if(read_ret=read(clisock,buffer,255)==-1)
     {
       std::cout << "error at read" << '\n';
+      end=1;
     }
-    std::cout << buffer << '\n';
-    std::cout << "i just read something" << '\n';
 
-    //echo back
-    //the write is complete garbage
-    write(clisock,buffer,strlen(buffer));
     if(memcmp(buffer, "RIGHT", strlen("RIGHT")) == 0)
     {
+      string send = "RIGHTOK";
+      //c_Str converts string to const char*
+      strcpy(sendbuffer, send.c_str());
+      //need to check if pos avalible
+      write(clisock,sendbuffer,strlen(sendbuffer));
+    }
 
+    if(memcmp(buffer, "LEFT", strlen("LEFT")) == 0)
+    {
+      string send = "LEFTOK";
+      //c_Str converts string to const char*
+      strcpy(sendbuffer, send.c_str());
+      //need to check if pos avalible
+      write(clisock,sendbuffer,strlen(sendbuffer));
+    }
 
+    if(memcmp(buffer, "UP", strlen("UP")) == 0)
+    {
+      string send = "UPOK";
+      //c_Str converts string to const char*
+      strcpy(sendbuffer, send.c_str());
+      //need to check if pos avalible
+      write(clisock,sendbuffer,strlen(sendbuffer));
+    }
+
+    if(memcmp(buffer, "DOWN", strlen("DOWN")) == 0)
+    {
+      string send = "DOWNOK";
+      //c_Str converts string to const char*
+      strcpy(sendbuffer, send.c_str());
+      //need to check if pos avalible
+      write(clisock,sendbuffer,strlen(sendbuffer));
     }
 
 
@@ -64,7 +92,7 @@ void *connection_handler(void *socketfdesc)
       end=1;
 
     }
-
+    bzero(sendbuffer,256);
     bzero(buffer,256);
     fflush(stdout);
   }
@@ -151,8 +179,8 @@ int main()
     //pthread create takes thread, attr(null==default), start routtine, arg
     //In this case arg will be the socket just set up with the thread so the handler knows which client to talk to
 
-
-
+    printf("Client with IP: %s and PORT %d connected\n",inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
+    std::cout << "creating thread" << '\n';
 
     int ret;
     pthread_t connection;
