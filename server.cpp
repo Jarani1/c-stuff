@@ -8,11 +8,12 @@
 #include <netinet/in.h>
 #include <pthread.h>
 #include <arpa/inet.h>
+#include <iterator>
 
 using namespace std;
 
 
-
+int portarr[8];
 
 
 void *connection_handler(void *socketfdesc)
@@ -23,31 +24,63 @@ void *connection_handler(void *socketfdesc)
   int read_ret;
   int end = 0;
   char *message, buffer[256], sendbuffer[256];
+  int init = 0;
 
 
 
   //send message to client
   //write takes socketfd to write to, message , length of message
   //send message pointer and length point on all
-  // message = "Suck my penis hehhehehehe\n";
-  // write(clisock,message, strlen(message));
-  // message = "Type something you want me to ECHO, neeeeeeeeeeeerd.\n";
-  // write(clisock,message,strlen(message));
-  // fflush(stdout);
+
 
   //recieve message from client
   //read takes socketfd to read from, buffer, buffer size
   while((end == 0))
   {
+
+    //print out entire array loooollll
+
+    // for(int i = 0; i<8; i++)
+    // {
+    //   std::cout << portarr[i] << '\n';
+    // }
+
     //read from client
     //if error here makes 1 client shut down everything
+
     if(read_ret=read(clisock,buffer,255)==-1)
     {
       std::cout << "error at read" << '\n';
       end=1;
     }
 
-    if(memcmp(buffer, "RIGHT", strlen("RIGHT")) == 0)
+
+    else if(memcmp(buffer, "INIT", strlen("INIT")) == 0)
+    {
+      std::cout << "got init" << '\n';
+      char * pch;
+      pch = strtok(buffer,":");
+      while(pch!=NULL)
+      {
+        printf("%s\n",pch);
+        pch = strtok(NULL,":");
+      }
+    }
+
+
+    else if(memcmp(buffer, "CURRPOS", strlen("CURRPOS")) == 0)
+    {
+      string send = "DOWNOK";
+      //c_Str converts string to const char*
+      strcpy(sendbuffer, send.c_str());
+      //need to check if pos avalible
+      write(clisock,sendbuffer,strlen(sendbuffer));
+    }
+
+
+
+
+    else if(memcmp(buffer, "RIGHT", strlen("RIGHT")) == 0)
     {
       string send = "RIGHTOK";
       //c_Str converts string to const char*
@@ -56,7 +89,7 @@ void *connection_handler(void *socketfdesc)
       write(clisock,sendbuffer,strlen(sendbuffer));
     }
 
-    if(memcmp(buffer, "LEFT", strlen("LEFT")) == 0)
+    else if(memcmp(buffer, "LEFT", strlen("LEFT")) == 0)
     {
       string send = "LEFTOK";
       //c_Str converts string to const char*
@@ -65,16 +98,17 @@ void *connection_handler(void *socketfdesc)
       write(clisock,sendbuffer,strlen(sendbuffer));
     }
 
-    if(memcmp(buffer, "UP", strlen("UP")) == 0)
+    else if(memcmp(buffer, "UP", strlen("UP")) == 0)
     {
       string send = "UPOK";
+
       //c_Str converts string to const char*
       strcpy(sendbuffer, send.c_str());
       //need to check if pos avalible
       write(clisock,sendbuffer,strlen(sendbuffer));
     }
 
-    if(memcmp(buffer, "DOWN", strlen("DOWN")) == 0)
+    else if(memcmp(buffer, "DOWN", strlen("DOWN")) == 0)
     {
       string send = "DOWNOK";
       //c_Str converts string to const char*
@@ -86,7 +120,7 @@ void *connection_handler(void *socketfdesc)
 
 
     //this will basically be how i check my protocols
-    if(memcmp(buffer, "quit", strlen("quit")) == 0)
+    else if(memcmp(buffer, "quit", strlen("quit")) == 0)
     {
       std::cout << "In quit" << '\n';
       end=1;
@@ -122,8 +156,11 @@ int main()
   std::cout << "Lets rock n roll" << '\n';
 
   socklen_t cliLen;
-  int socketfd , client_sock, *new_sock;
+  int socketfd , client_sock, *new_sock, clientCount;
   struct sockaddr_in server_addr , cli_addr;
+  string iparr[256];
+//  int portarr[256];
+  double posiarr[256];
 
   //Create socket
   //Takes protocolfamily, TCP, default
@@ -136,7 +173,7 @@ int main()
 
   //prepare socketaddr_in struct
   server_addr.sin_family = AF_INET;
-  server_addr.sin_addr.s_addr = inet_addr("192.168.1.7");
+  server_addr.sin_addr.s_addr = inet_addr("192.168.1.3"); //ifconfig
   server_addr.sin_port = htons(2000);
 
   //bind socket to port with addr of localhost(server) and listend for connections
@@ -149,6 +186,7 @@ int main()
 
   //print port and addr server is running on
   printf("Server is running on %s on port %d\n",inet_ntoa(server_addr.sin_addr), ntohs(server_addr.sin_port));
+
 
 
   //listen on the port we've bound to
@@ -180,10 +218,22 @@ int main()
     //In this case arg will be the socket just set up with the thread so the handler knows which client to talk to
 
     printf("Client with IP: %s and PORT %d connected\n",inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
+
+
+    //add client to lists
+
+    iparr[clientCount] = inet_ntoa(server_addr.sin_addr);
+    portarr[clientCount]= ntohs(cli_addr.sin_port);
+    std::cout << "client added to lists" << '\n';
+    printf("Total connected clients: %d\n",clientCount+1);
+    clientCount++;
     std::cout << "creating thread" << '\n';
 
     int ret;
     pthread_t connection;
+
+
+
     new_sock = (int*)malloc(1); //malloc is *void so have to type cast to int
     *new_sock = client_sock;
 
