@@ -1,6 +1,7 @@
 #include <iostream>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string>
 #include <string.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -9,12 +10,15 @@
 #include <pthread.h>
 #include <arpa/inet.h>
 #include <iterator>
+#include <mutex>
 
 using namespace std;
 
 
 int portarr[8];
-
+//we need a socket fd array for specific messages
+int fdarray[8];
+int clientCount;
 
 void *connection_handler(void *socketfdesc)
 {
@@ -23,10 +27,13 @@ void *connection_handler(void *socketfdesc)
   int clisock = *(int*)socketfdesc;
   int read_ret;
   int end = 0;
-  char *message, buffer[256], sendbuffer[256];
+  char *message, buffer[256], sendbuffer[256], forbuffer[256];
   int init = 0;
-
-
+  int myID;
+  char idnum;
+  //string ID to send always
+  string idn;
+  mutex mtx;
 
   //send message to client
   //write takes socketfd to write to, message , length of message
@@ -55,16 +62,62 @@ void *connection_handler(void *socketfdesc)
     }
 
 
-    else if(memcmp(buffer, "INIT", strlen("INIT")) == 0)
+
+
+    else if(memcmp(buffer, "ID", strlen("ID")) == 0)
     {
-      std::cout << "got init" << '\n';
-      char * pch;
-      pch = strtok(buffer,":");
-      while(pch!=NULL)
+      //give me my ID
+      std::cout << "got ID" << '\n';
+
+      for(int i= 0; i<255;i++)
       {
-        printf("%s\n",pch);
-        pch = strtok(NULL,":");
+        if(buffer[i]==':')
+        {
+          idnum = buffer[i+1]; // cant go above 9 players heheh
+          break;
+        }
       }
+
+      myID = idnum - '0'; //ascii
+      printf("My ID is: %d\n",myID );
+
+      //now that i got ID send start
+      idn = to_string(myID);
+      string send = "JOINSE:"+idn;
+      mtx.lock();
+      //c_Str converts string to const char*
+      strcpy(forbuffer, send.c_str());
+      std::cout << "sending this: "<<send << '\n';
+      for(int i = 0; i<8;i++)
+      {
+        if(i!=myID && fdarray[i]!=0)
+        {
+          write(fdarray[i],forbuffer,strlen(forbuffer));
+          bzero(forbuffer,256);
+        }
+      }
+
+      //inform yourself
+      //Send join on everyones behalf lol
+
+      for(int j = 0;j<clientCount;j++)
+      {
+        if(j!=myID)
+        {
+          string idnum = to_string(j);
+          string infme = "JOINSE:"+idnum;
+          strcpy(sendbuffer, infme.c_str());
+          write(clisock,sendbuffer,strlen(sendbuffer));
+          bzero(sendbuffer,256);
+          fflush(stdout);
+        }
+      }
+
+
+      mtx.unlock();
+
+
+
     }
 
 
@@ -82,39 +135,105 @@ void *connection_handler(void *socketfdesc)
 
     else if(memcmp(buffer, "RIGHT", strlen("RIGHT")) == 0)
     {
-      string send = "RIGHTOK";
-      //c_Str converts string to const char*
-      strcpy(sendbuffer, send.c_str());
-      //need to check if pos avalible
-      write(clisock,sendbuffer,strlen(sendbuffer));
+      // //POSITION PART
+      // string send = "RIGHTOK";
+      // //c_Str converts string to const char*
+      // strcpy(sendbuffer, send.c_str());
+      // //need to check if pos avalible
+      // write(clisock,sendbuffer,strlen(sendbuffer));
+
+
+      //INFORM OTHER PLAYERS
+      //send to other players
+      string rsend = "CRIGHT:"+idn;
+      std::cout << rsend << '\n';
+      mtx.lock();
+      strcpy(forbuffer, rsend.c_str());
+      for(int i = 0; i<8;i++)
+      {
+        if(i!=myID && fdarray[i]!=0)
+        {
+          fflush(stdout);
+          std::cout << "Buffer: " <<forbuffer<< '\n';
+          write(fdarray[i],forbuffer,strlen(forbuffer));
+          bzero(forbuffer,256);
+
+        }
+      }
+      mtx.unlock();
+
+
     }
 
     else if(memcmp(buffer, "LEFT", strlen("LEFT")) == 0)
     {
-      string send = "LEFTOK";
-      //c_Str converts string to const char*
-      strcpy(sendbuffer, send.c_str());
-      //need to check if pos avalible
-      write(clisock,sendbuffer,strlen(sendbuffer));
+      // string send = "LEFTOK";
+      // //c_Str converts string to const char*
+      // strcpy(sendbuffer, send.c_str());
+      // //need to check if pos avalible
+      // write(clisock,sendbuffer,strlen(sendbuffer));
+      string rsend = "CLEFTT:"+idn;
+      mtx.lock();
+      strcpy(forbuffer, rsend.c_str());
+      for(int i = 0; i<8;i++)
+      {
+        if(i!=myID && fdarray[i]!=0)
+        {
+          fflush(stdout);
+          write(fdarray[i],forbuffer,strlen(forbuffer));
+          bzero(forbuffer,256);
+
+        }
+      }
+      mtx.unlock();
     }
 
     else if(memcmp(buffer, "UP", strlen("UP")) == 0)
     {
-      string send = "UPOK";
+      // string send = "UPOK";
+      //
+      // //c_Str converts string to const char*
+      // strcpy(sendbuffer, send.c_str());
+      // //need to check if pos avalible
+      // write(clisock,sendbuffer,strlen(sendbuffer));
+      string rsend = "CUUPPP:"+idn;
+      mtx.lock();
+      strcpy(forbuffer, rsend.c_str());
+      for(int i = 0; i<8;i++)
+      {
+        if(i!=myID && fdarray[i]!=0)
+        {
+          fflush(stdout);
+          write(fdarray[i],forbuffer,strlen(forbuffer));
+          bzero(forbuffer,256);
 
-      //c_Str converts string to const char*
-      strcpy(sendbuffer, send.c_str());
-      //need to check if pos avalible
-      write(clisock,sendbuffer,strlen(sendbuffer));
+        }
+      }
+      mtx.unlock();
     }
 
     else if(memcmp(buffer, "DOWN", strlen("DOWN")) == 0)
     {
-      string send = "DOWNOK";
-      //c_Str converts string to const char*
-      strcpy(sendbuffer, send.c_str());
-      //need to check if pos avalible
-      write(clisock,sendbuffer,strlen(sendbuffer));
+      // string send = "DOWNOK";
+      // //c_Str converts string to const char*
+      // strcpy(sendbuffer, send.c_str());
+      // //need to check if pos avalible
+      // write(clisock,sendbuffer,strlen(sendbuffer));
+      string rsend = "CDOWNN:"+idn;
+      mtx.lock();
+      strcpy(forbuffer, rsend.c_str());
+      for(int i = 0; i<8;i++)
+      {
+        if(i!=myID && fdarray[i]!=0)
+        {
+          fflush(stdout);
+          write(fdarray[i],forbuffer,strlen(forbuffer));
+          bzero(forbuffer,256);
+
+        }
+      }
+      mtx.unlock();
+
     }
 
 
@@ -128,6 +247,7 @@ void *connection_handler(void *socketfdesc)
     }
     bzero(sendbuffer,256);
     bzero(buffer,256);
+    bzero(forbuffer,256);
     fflush(stdout);
   }
 
@@ -156,11 +276,16 @@ int main()
   std::cout << "Lets rock n roll" << '\n';
 
   socklen_t cliLen;
-  int socketfd , client_sock, *new_sock, clientCount;
+  int socketfd , client_sock, *new_sock;
   struct sockaddr_in server_addr , cli_addr;
+//this is alot of garbage
   string iparr[256];
 //  int portarr[256];
   double posiarr[256];
+  char initbuffer[256];
+
+  bzero(fdarray,256);
+
 
   //Create socket
   //Takes protocolfamily, TCP, default
@@ -213,6 +338,29 @@ int main()
     std::cout << "Waiting for connection" << '\n';
     client_sock = accept(socketfd, (struct sockaddr *)&cli_addr, &cliLen);
     std::cout << "Connection accepted" << '\n';
+
+
+    //We want to make a list of all the conneced socketFds
+    fdarray[clientCount]=client_sock; //adding them to lists
+
+    std::cout << "inc array" << '\n';
+    for(int i=0;i<255;i++)
+    {
+      if(fdarray[i]!=0)
+      {
+
+        std::cout << fdarray[i] << '\n';
+      }else
+      {
+        break;
+      }
+    }
+
+
+
+
+
+
     //Start thread with new client_sock
     //pthread create takes thread, attr(null==default), start routtine, arg
     //In this case arg will be the socket just set up with the thread so the handler knows which client to talk to
@@ -226,6 +374,16 @@ int main()
     portarr[clientCount]= ntohs(cli_addr.sin_port);
     std::cout << "client added to lists" << '\n';
     printf("Total connected clients: %d\n",clientCount+1);
+
+    //send client its id number
+    string idnum = to_string(clientCount);
+    string send = "clntid:"+idnum;
+    std::cout << send << '\n';
+    //c_Str converts string to const char*
+    strcpy(initbuffer, send.c_str());
+    //need to check if pos avalible
+    write(client_sock,initbuffer,strlen(initbuffer));
+
     clientCount++;
     std::cout << "creating thread" << '\n';
 
@@ -252,6 +410,20 @@ int main()
 
 }
 
+//split string at
+
+// string sid;
+// char * pch;
+// pch = strtok(buffer,":");
+// while(pch!=NULL)
+// {
+//   printf("%s\n",pch);
+//   pch = strtok(NULL,":");
+//   string sid (pch);
+//
+// }
+// std::cout << "string ID" << '\n';
+// std::cout << sid << '\n';
 
 
 //gdb server.o gdb command then just run easy peasy
